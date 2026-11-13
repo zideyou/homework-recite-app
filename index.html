@@ -186,6 +186,17 @@ textarea{resize:vertical;min-height:80px;line-height:1.6}
 .today-result.miss .today-result-title{color:var(--danger)}
 .today-result.ok .today-result-title{color:var(--accent)}
 .today-miss-names{line-height:1.8}
+.today-out-title{font-size:15px;font-weight:700;margin:0 0 4px}
+.today-out-sub{font-size:11px;color:var(--text-muted);margin-bottom:10px}
+.out-student{padding:9px 0;border-bottom:1px solid var(--border-color)}
+.out-student:last-child{border-bottom:none;padding-bottom:0}
+.out-head{display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap}
+.out-name{font-weight:700;font-size:14px}
+.out-badge{font-size:11px;font-weight:700;color:#fff;background:var(--danger);border-radius:10px;padding:2px 8px;white-space:nowrap}
+.out-badge.warn{background:var(--warning)}
+.out-line{font-size:13px;line-height:1.7;padding-left:2px}
+.out-book{color:var(--text-secondary);font-weight:600}
+.out-part{font-size:12px;color:var(--warning);padding-left:2px;line-height:1.7}
 @media(max-width:480px){
   :root{--col-w:36px;--name-w:80px}
   .app-title{font-size:15px}
@@ -395,8 +406,25 @@ $('#newBookName').value='';$('#newBookLessons').value='';$('#newBookCurrentLesso
 
 // ============ Today ============
 function colLabelFull(b,col){return col.type==='review'?('複習 '+col.label):fmtLessonFull(b,col.num)}
+function colLabelShort(b,col){return col.type==='review'?col.label:fmtLesson(b,col.num)}
 function chipClass(st){return 'stu-chip'+(st==='done'?' done':st==='partial'?' partial':'')}
 function chipMark(st){return st==='done'?'✓':st==='partial'?'△':''}
+
+function computeOutstanding(students,colsByBook){
+return students.map(s=>{
+  const miss=[],part=[];
+  colsByBook.forEach(({b,cols})=>{
+    const m=cols.filter(c=>getStatus(b.id,c.key,s.id)==='empty');
+    const p=cols.filter(c=>getStatus(b.id,c.key,s.id)==='partial');
+    if(m.length)miss.push({b,cols:m});
+    if(p.length)part.push({b,cols:p});
+  });
+  const missCount=miss.reduce((n,g)=>n+g.cols.length,0);
+  const partCount=part.reduce((n,g)=>n+g.cols.length,0);
+  return{student:s,miss,part,missCount,partCount};
+}).filter(r=>r.missCount>0||r.partCount>0)
+  .sort((a,c)=>(c.missCount-a.missCount)||(c.partCount-a.partCount));
+}
 
 function renderToday(){
 const area=$('#todayArea');area.innerHTML='';
@@ -408,9 +436,35 @@ const books=getBooksForActiveClass('homework');
 if(!books.length){area.appendChild(emptyState('📖','請至「設定」新增功課教材'));return}
 const gridNames=buildGridNames(cls.students);
 const nameOf={};cls.students.forEach((s,i)=>{nameOf[s.id]=gridNames[i]});
+books.forEach(ensureBookDefaults);
+const colsByBook=books.map(b=>({b,cols:getFullColumns(b)}));
+
+const outCard=el('div',{class:'card'});
+function refreshOutstanding(){
+  outCard.innerHTML='';
+  outCard.appendChild(el('h3',{class:'today-out-title'},'📋 未繳作業總表'));
+  outCard.appendChild(el('div',{class:'today-out-sub'},'依目前進度列出每位學生所有尚未完成的作業'));
+  const rows=computeOutstanding(cls.students,colsByBook);
+  if(!rows.length){
+    outCard.appendChild(el('div',{class:'today-result ok'},el('div',{class:'today-result-title'},'✅ 全班作業都完成了！')));
+    return;
+  }
+  rows.forEach(r=>{
+    const item=el('div',{class:'out-student'});
+    const head=el('div',{class:'out-head'},el('span',{class:'out-name'},nameOf[r.student.id]));
+    if(r.missCount)head.appendChild(el('span',{class:'out-badge'},r.missCount+' 項未繳'));
+    if(r.partCount)head.appendChild(el('span',{class:'out-badge warn'},r.partCount+' 項未訂正'));
+    item.appendChild(head);
+    r.miss.forEach(g=>item.appendChild(el('div',{class:'out-line'},
+      el('span',{class:'out-book'},g.b.name+'：'),
+      g.cols.map(c=>colLabelShort(g.b,c)).join('、'))));
+    r.part.forEach(g=>item.appendChild(el('div',{class:'out-part'},
+      '△ '+g.b.name+'（未訂正）：'+g.cols.map(c=>colLabelShort(g.b,c)).join('、'))));
+    outCard.appendChild(item);
+  });
+}
 
 books.forEach(b=>{
-ensureBookDefaults(b);
 const cols=getFullColumns(b);
 const card=el('div',{class:'card'});
 const countEl=el('span',{class:'today-count'});
@@ -435,10 +489,10 @@ function refresh(){
   resultBox.innerHTML='';
   if(!missing.length){
     resultBox.className='today-result ok';
-    resultBox.appendChild(el('div',{class:'today-result-title'},'✅ 全班都繳交了！'));
+    resultBox.appendChild(el('div',{class:'today-result-title'},'✅ 本課全班都繳交了！'));
   }else{
     resultBox.className='today-result miss';
-    resultBox.appendChild(el('div',{class:'today-result-title'},'⚠️ 未繳交（'+missing.length+' 人）'));
+    resultBox.appendChild(el('div',{class:'today-result-title'},'⚠️ 本課未繳交（'+missing.length+' 人）'));
     resultBox.appendChild(el('div',{class:'today-miss-names'},missing.map(s=>nameOf[s.id]).join('、')));
   }
   if(partial.length){
@@ -457,14 +511,14 @@ cls.students.forEach(s=>{
     saveState();
     chip.className=chipClass(next);
     mark.textContent=chipMark(next);
-    refresh();
+    refresh();refreshOutstanding();
   }},mark,el('span',{},nameOf[s.id]));
   chipRefs.push({s,chip,mark});
   chips.appendChild(chip);
 });
 card.appendChild(chips);
 
-const setAll=st=>{cls.students.forEach(s=>setStatus(b.id,selKey,s.id,st));saveState();chipRefs.forEach(r=>{r.chip.className=chipClass(st);r.mark.textContent=chipMark(st)});refresh()};
+const setAll=st=>{cls.students.forEach(s=>setStatus(b.id,selKey,s.id,st));saveState();chipRefs.forEach(r=>{r.chip.className=chipClass(st);r.mark.textContent=chipMark(st)});refresh();refreshOutstanding()};
 card.appendChild(el('div',{class:'btn-row',style:'margin-top:10px'},
   el('button',{class:'btn btn-sm btn-primary',onclick:()=>setAll('done')},'全部已繳'),
   el('button',{class:'btn btn-sm btn-outline',onclick:()=>setAll('empty')},'全部清除')));
@@ -473,6 +527,9 @@ card.appendChild(resultBox);
 refresh();
 area.appendChild(card);
 });
+
+refreshOutstanding();
+area.appendChild(outCard);
 }
 
 // ============ Check-in ============
