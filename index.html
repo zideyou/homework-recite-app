@@ -165,6 +165,38 @@ textarea{resize:vertical;min-height:80px;line-height:1.6}
 /* expandable edit panel */
 .edit-panel{background:var(--bg-primary);border:1px solid var(--border-color);border-radius:8px;padding:12px;margin-top:8px}
 .edit-panel .form-row{margin-bottom:8px}
+/* today page */
+.today-date{font-size:13px;color:var(--text-secondary);margin:-6px 0 12px;font-weight:600}
+.today-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.today-book{font-size:15px;font-weight:700;flex:1;min-width:0}
+.today-count{font-size:12px;font-weight:700;color:var(--accent);white-space:nowrap}
+.today-sel-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.today-sel-row .form-label{margin:0;white-space:nowrap}
+.today-legend{font-size:11px;color:var(--text-muted);margin-bottom:8px}
+.today-chips{display:flex;flex-wrap:wrap;gap:8px}
+.stu-chip{display:inline-flex;align-items:center;gap:5px;padding:9px 14px;border-radius:20px;border:2px solid var(--check-border);background:var(--bg-secondary);color:var(--text-primary);font-size:14px;font-weight:600;cursor:pointer;user-select:none;-webkit-user-select:none;min-height:44px;transition:background .12s,border-color .12s,color .12s}
+.stu-chip:active{transform:scale(.95)}
+.stu-chip.done{background:var(--check-done);border-color:var(--check-done);color:var(--check-done-text)}
+.stu-chip.partial{background:var(--warning);border-color:var(--warning);color:#fff}
+.stu-chip .chip-mark{font-size:14px;font-weight:700;min-width:12px}
+.today-result{margin-top:12px;padding:10px 12px;border-radius:8px;font-size:13px}
+.today-result.miss{background:var(--danger-light);border:1px solid var(--danger)}
+.today-result.ok{background:var(--accent-light);border:1px solid var(--accent)}
+.today-result-title{font-weight:700;margin-bottom:4px}
+.today-result.miss .today-result-title{color:var(--danger)}
+.today-result.ok .today-result-title{color:var(--accent)}
+.today-miss-names{line-height:1.8}
+.today-out-title{font-size:15px;font-weight:700;margin:0 0 4px}
+.today-out-sub{font-size:11px;color:var(--text-muted);margin-bottom:10px}
+.out-student{padding:9px 0;border-bottom:1px solid var(--border-color)}
+.out-student:last-child{border-bottom:none;padding-bottom:0}
+.out-head{display:flex;align-items:center;gap:8px;margin-bottom:3px;flex-wrap:wrap}
+.out-name{font-weight:700;font-size:14px}
+.out-badge{font-size:11px;font-weight:700;color:#fff;background:var(--danger);border-radius:10px;padding:2px 8px;white-space:nowrap}
+.out-badge.warn{background:var(--warning)}
+.out-line{font-size:13px;line-height:1.7;padding-left:2px}
+.out-book{color:var(--text-secondary);font-weight:600}
+.out-part{font-size:12px;color:var(--warning);padding-left:2px;line-height:1.7}
 @media(max-width:480px){
   :root{--col-w:36px;--name-w:80px}
   .app-title{font-size:15px}
@@ -181,7 +213,12 @@ textarea{resize:vertical;min-height:80px;line-height:1.6}
   <button id="darkModeBtn" class="icon-btn" title="切換深色模式">🌙</button>
 </header>
 <main>
-  <section id="tab-checkin" class="tab-section active">
+  <section id="tab-today" class="tab-section active">
+    <h2 class="section-title">今日應繳作業</h2>
+    <div class="today-date" id="todayDate"></div>
+    <div id="todayArea"></div>
+  </section>
+  <section id="tab-checkin" class="tab-section">
     <h2 class="section-title">登記進度</h2>
     <div id="checkinArea"></div>
   </section>
@@ -248,7 +285,8 @@ textarea{resize:vertical;min-height:80px;line-height:1.6}
   </section>
 </main>
 <nav class="tab-bar">
-  <div class="tab-btn active" data-tab="checkin"><div class="tab-icon">✅</div><div>登記</div></div>
+  <div class="tab-btn active" data-tab="today"><div class="tab-icon">📅</div><div>今日</div></div>
+  <div class="tab-btn" data-tab="checkin"><div class="tab-icon">✅</div><div>登記</div></div>
   <div class="tab-btn" data-tab="summary"><div class="tab-icon">📊</div><div>總覽</div></div>
   <div class="tab-btn" data-tab="settings"><div class="tab-icon">⚙️</div><div>設定</div></div>
   <div class="tab-btn" data-tab="export"><div class="tab-icon">📤</div><div>匯出</div></div>
@@ -259,7 +297,7 @@ textarea{resize:vertical;min-height:80px;line-height:1.6}
 <script>
 'use strict';
 const STORAGE_KEY = 'hwReciteApp_v1';
-const defaultState = () => ({version:1,darkMode:false,activeClassId:null,classes:[],books:[],records:{},collapsed:{}});
+const defaultState = () => ({version:1,darkMode:false,activeClassId:null,classes:[],books:[],records:{},collapsed:{},todayLesson:{}});
 let state = loadState();
 function loadState(){try{const r=localStorage.getItem(STORAGE_KEY);if(!r)return defaultState();return Object.assign(defaultState(),JSON.parse(r))}catch(e){return defaultState()}}
 function saveState(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify(state))}catch(e){showToast('儲存失敗')}}
@@ -291,13 +329,13 @@ function applyTheme(){document.documentElement.dataset.theme=state.darkMode?'dar
 $('#darkModeBtn').addEventListener('click',()=>{state.darkMode=!state.darkMode;applyTheme();saveState()});
 
 // Tabs
-function switchTab(name){$$('.tab-section').forEach(s=>s.classList.toggle('active',s.id==='tab-'+name));$$('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));if(name==='checkin')renderCheckin();if(name==='summary')renderSummary();if(name==='settings')renderSettings();if(name==='export')renderPdfBookSelector()}
+function switchTab(name){$$('.tab-section').forEach(s=>s.classList.toggle('active',s.id==='tab-'+name));$$('.tab-btn').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));if(name==='today')renderToday();if(name==='checkin')renderCheckin();if(name==='summary')renderSummary();if(name==='settings')renderSettings();if(name==='export')renderPdfBookSelector()}
 $$('.tab-btn').forEach(b=>b.addEventListener('click',()=>switchTab(b.dataset.tab)));
 
 // Class selector
 function renderClassSelector(){const s=$('#classSelector');s.innerHTML='';if(!state.classes.length){s.appendChild(el('option',{value:''},'— 尚無班級 —'));return}state.classes.forEach(c=>s.appendChild(el('option',{value:c.id},c.name+'（'+c.students.length+'人）')));if(!state.activeClassId||!state.classes.find(c=>c.id===state.activeClassId))state.activeClassId=state.classes[0].id;s.value=state.activeClassId}
 $('#classSelector').addEventListener('change',e=>{state.activeClassId=e.target.value;saveState();renderAll()});
-function renderAll(){renderClassSelector();switchTab(document.querySelector('.tab-btn.active')?.dataset.tab||'checkin')}
+function renderAll(){renderClassSelector();switchTab(document.querySelector('.tab-btn.active')?.dataset.tab||'today')}
 
 // ============ Settings ============
 function renderSettings(){renderClassList();renderStudentList();renderBookList();const c=getActiveClass();$('#currentClassLabel').textContent=c?'目前：'+c.name:''}
@@ -365,6 +403,134 @@ return p}
 $('#addBookBtn').addEventListener('click',()=>{const cls=getActiveClass();if(!cls)return showToast('請先新增班級');const name=$('#newBookName').value.trim();const lessons=parseInt($('#newBookLessons').value,10);const type=$('#newBookType').value;if(!name)return showToast('請輸入名稱');if(!lessons||lessons<1)return showToast('請輸入總課數');
 state.books.push({id:uid(),name,totalLessons:lessons,type,classId:cls.id,lessonLabel:$('#newBookLabel').value,startLesson:parseInt($('#newBookStart').value,10)||1,currentLesson:parseInt($('#newBookCurrentLesson').value,10)||0,lessonFilter:$('#newBookLessonFilter').value,skipEvery:parseInt($('#newBookSkipEvery').value,10)||0});
 $('#newBookName').value='';$('#newBookLessons').value='';$('#newBookCurrentLesson').value='';$('#newBookSkipEvery').value='';$('#newBookStart').value='1';$('#newBookLabel').value='#';$('#newBookLessonFilter').value='all';saveState();renderAll();showToast('已新增')});
+
+// ============ Today ============
+function colLabelFull(b,col){return col.type==='review'?('複習 '+col.label):fmtLessonFull(b,col.num)}
+function colLabelShort(b,col){return col.type==='review'?col.label:fmtLesson(b,col.num)}
+function chipClass(st){return 'stu-chip'+(st==='done'?' done':st==='partial'?' partial':'')}
+function chipMark(st){return st==='done'?'✓':st==='partial'?'△':''}
+
+function computeOutstanding(students,colsByBook){
+return students.map(s=>{
+  const miss=[],part=[];
+  colsByBook.forEach(({b,cols})=>{
+    const m=cols.filter(c=>getStatus(b.id,c.key,s.id)==='empty');
+    const p=cols.filter(c=>getStatus(b.id,c.key,s.id)==='partial');
+    if(m.length)miss.push({b,cols:m});
+    if(p.length)part.push({b,cols:p});
+  });
+  const missCount=miss.reduce((n,g)=>n+g.cols.length,0);
+  const partCount=part.reduce((n,g)=>n+g.cols.length,0);
+  return{student:s,miss,part,missCount,partCount};
+}).filter(r=>r.missCount>0||r.partCount>0)
+  .sort((a,c)=>(c.missCount-a.missCount)||(c.partCount-a.partCount));
+}
+
+function renderToday(){
+const area=$('#todayArea');area.innerHTML='';
+$('#todayDate').textContent=new Date().toLocaleDateString('zh-TW',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
+const cls=getActiveClass();
+if(!cls){area.appendChild(emptyState('🏫','請至「設定」新增班級'));return}
+if(!cls.students.length){area.appendChild(emptyState('👥','請至「設定」新增學生'));return}
+const books=getBooksForActiveClass('homework');
+if(!books.length){area.appendChild(emptyState('📖','請至「設定」新增功課教材'));return}
+const gridNames=buildGridNames(cls.students);
+const nameOf={};cls.students.forEach((s,i)=>{nameOf[s.id]=gridNames[i]});
+books.forEach(ensureBookDefaults);
+const colsByBook=books.map(b=>({b,cols:getFullColumns(b)}));
+
+const outCard=el('div',{class:'card'});
+function refreshOutstanding(){
+  outCard.innerHTML='';
+  outCard.appendChild(el('h3',{class:'today-out-title'},'📋 未繳作業總表'));
+  outCard.appendChild(el('div',{class:'today-out-sub'},'依目前進度列出每位學生所有尚未完成的作業'));
+  const rows=computeOutstanding(cls.students,colsByBook);
+  if(!rows.length){
+    outCard.appendChild(el('div',{class:'today-result ok'},el('div',{class:'today-result-title'},'✅ 全班作業都完成了！')));
+    return;
+  }
+  rows.forEach(r=>{
+    const item=el('div',{class:'out-student'});
+    const head=el('div',{class:'out-head'},el('span',{class:'out-name'},nameOf[r.student.id]));
+    if(r.missCount)head.appendChild(el('span',{class:'out-badge'},r.missCount+' 項未繳'));
+    if(r.partCount)head.appendChild(el('span',{class:'out-badge warn'},r.partCount+' 項未訂正'));
+    item.appendChild(head);
+    r.miss.forEach(g=>item.appendChild(el('div',{class:'out-line'},
+      el('span',{class:'out-book'},g.b.name+'：'),
+      g.cols.map(c=>colLabelShort(g.b,c)).join('、'))));
+    r.part.forEach(g=>item.appendChild(el('div',{class:'out-part'},
+      '△ '+g.b.name+'（未訂正）：'+g.cols.map(c=>colLabelShort(g.b,c)).join('、'))));
+    outCard.appendChild(item);
+  });
+}
+
+books.forEach(b=>{
+const cols=getFullColumns(b);
+const card=el('div',{class:'card'});
+const countEl=el('span',{class:'today-count'});
+card.appendChild(el('div',{class:'today-head'},el('span',{class:'today-book'},b.name),countEl));
+if(!cols.length){card.appendChild(el('div',{class:'summary-empty'},'目前無應繳課次'));area.appendChild(card);return}
+
+let selKey=state.todayLesson[b.id];
+if(!cols.some(c=>c.key===selKey))selKey=cols[cols.length-1].key;
+
+const sel=el('select',{onchange:e=>{state.todayLesson[b.id]=e.target.value;saveState();renderToday()}});
+cols.forEach(c=>{const o=el('option',{value:c.key},colLabelFull(b,c));if(c.key===selKey)o.selected=true;sel.appendChild(o)});
+card.appendChild(el('div',{class:'today-sel-row'},el('span',{class:'form-label'},'應繳課次'),sel));
+card.appendChild(el('div',{class:'today-legend'},'點一下＝已繳交 ✓，再點一下＝已交未訂正 △，第三下＝取消'));
+
+const resultBox=el('div');
+const chipRefs=[];
+
+function refresh(){
+  const missing=cls.students.filter(s=>getStatus(b.id,selKey,s.id)==='empty');
+  const partial=cls.students.filter(s=>getStatus(b.id,selKey,s.id)==='partial');
+  countEl.textContent='已繳 '+(cls.students.length-missing.length)+' / '+cls.students.length;
+  resultBox.innerHTML='';
+  if(!missing.length){
+    resultBox.className='today-result ok';
+    resultBox.appendChild(el('div',{class:'today-result-title'},'✅ 本課全班都繳交了！'));
+  }else{
+    resultBox.className='today-result miss';
+    resultBox.appendChild(el('div',{class:'today-result-title'},'⚠️ 本課未繳交（'+missing.length+' 人）'));
+    resultBox.appendChild(el('div',{class:'today-miss-names'},missing.map(s=>nameOf[s.id]).join('、')));
+  }
+  if(partial.length){
+    resultBox.appendChild(el('div',{style:'margin-top:6px;padding-top:6px;border-top:1px dashed var(--border-color);color:var(--warning);font-size:12px'},'△ 已交未訂正（'+partial.length+' 人）：'+partial.map(s=>nameOf[s.id]).join('、')));
+  }
+}
+
+const chips=el('div',{class:'today-chips'});
+cls.students.forEach(s=>{
+  const st=getStatus(b.id,selKey,s.id);
+  const mark=el('span',{class:'chip-mark'},chipMark(st));
+  const chip=el('div',{class:chipClass(st),onclick:()=>{
+    const cur=getStatus(b.id,selKey,s.id);
+    const next=cur==='empty'?'done':cur==='done'?'partial':'empty';
+    setStatus(b.id,selKey,s.id,next);
+    saveState();
+    chip.className=chipClass(next);
+    mark.textContent=chipMark(next);
+    refresh();refreshOutstanding();
+  }},mark,el('span',{},nameOf[s.id]));
+  chipRefs.push({s,chip,mark});
+  chips.appendChild(chip);
+});
+card.appendChild(chips);
+
+const setAll=st=>{cls.students.forEach(s=>setStatus(b.id,selKey,s.id,st));saveState();chipRefs.forEach(r=>{r.chip.className=chipClass(st);r.mark.textContent=chipMark(st)});refresh();refreshOutstanding()};
+card.appendChild(el('div',{class:'btn-row',style:'margin-top:10px'},
+  el('button',{class:'btn btn-sm btn-primary',onclick:()=>setAll('done')},'全部已繳'),
+  el('button',{class:'btn btn-sm btn-outline',onclick:()=>setAll('empty')},'全部清除')));
+
+card.appendChild(resultBox);
+refresh();
+area.appendChild(card);
+});
+
+refreshOutstanding();
+area.appendChild(outCard);
+}
 
 // ============ Check-in ============
 function renderCheckin(){const area=$('#checkinArea');area.innerHTML='';const cls=getActiveClass();
@@ -480,7 +646,7 @@ $('#importJsonFile').addEventListener('change',async e=>{const f=e.target.files[
 $('#resetAllBtn').addEventListener('click',async()=>{const ok=await confirmDialog('清除所有資料','無法復原，確定？');if(!ok)return;state=defaultState();saveState();applyTheme();renderAll();showToast('已清除')});
 
 // Init
-applyTheme();renderAll();switchTab('checkin')
+applyTheme();renderAll();switchTab('today')
 </script>
 </body>
 </html>
